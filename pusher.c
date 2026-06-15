@@ -194,7 +194,7 @@ int main() {
                                tree_obj.sha1_hex, old_hash, username, username, now, username, username, now, commit_msg);
 
     GitPayloadObject commit_obj;
-    strcpy(commit_obj.type, "commit"); // Safely sets structural tracking attributes
+    strcpy(commit_obj.type, "commit"); 
     commit_obj.raw_size = commit_len;
     commit_obj.raw_content = malloc(commit_len);
     memcpy(commit_obj.raw_content, commit_raw, commit_len);
@@ -258,9 +258,27 @@ int main() {
     headers = curl_slist_append(headers, "Accept: application/x-git-receive-pack-result");
     curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
 
-    // Frame data using hex escaping to prevent C string truncation
-    char pkt_line[256];
-    int pkt_len = snprintf(pkt_line, sizeof(pkt_line), "005d%s %s refs/heads/main\x00 report-status\n0000", old_hash, commit_obj.sha1_hex);
+    // Safe multi-step generation of the packet string to prevent C string truncation bugs
+    char pkt_body[512];
+    int body_len = snprintf(pkt_body, sizeof(pkt_body), "%s %s refs/heads/main report-status\n", old_hash, commit_obj.sha1_hex);
+    
+    // Manually substitute the space boundary right after the refname with a protocol null byte
+    char *ref_ptr = strstr(pkt_body, "refs/heads/main");
+    if (ref_ptr) {
+        ref_ptr[15] = '\0'; 
+    }
+
+    // Compute the dynamic hex-length protocol line header (body size + 4 bytes for the header itself)
+    int total_pkt_len = body_len + 4;
+    char pkt_header[5];
+    snprintf(pkt_header, sizeof(pkt_header), "%04x", total_pkt_len);
+
+    // Build the final complete network packet line block layout
+    int pkt_len = 4 + body_len + 4;
+    char *pkt_line = malloc(pkt_len);
+    memcpy(pkt_line, pkt_header, 4);
+    memcpy(pkt_line + 4, pkt_body, body_len);
+    memcpy(pkt_line + 4 + body_len, "0000", 4); // Append the flush delimiter packet
 
     int total_send_len = pkt_len + stream_pos;
     unsigned char *final_payload = malloc(total_send_len);
@@ -279,6 +297,7 @@ int main() {
     if (res != CURLE_OK) printf("Upload Stream Interrupted: %s\n", curl_easy_strerror(res));
 
     // Cleanup allocations
+    free(pkt_line);
     free(final_payload); free(blob_obj.raw_content); free(blob_obj.compressed_data);
     free(tree_obj.raw_content); free(tree_obj.compressed_data);
     free(commit_obj.raw_content); free(commit_obj.compressed_data);
