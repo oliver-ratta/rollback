@@ -1,3 +1,10 @@
 
-#define USER_NAME "John Doe"
-#define USER_EMAIL "john.doe@example.com"
+
+
+
+
+
+
+
+#define USER_NAME ""
+#define USER_EMAIL ""

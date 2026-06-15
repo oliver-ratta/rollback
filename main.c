@@ -38,53 +38,13 @@ if (fptr == NULL) {
 }
 
     
-    fptr = fopen("gitlog.txt", "a");
+    
     fprintf(fptr, "%s\n", log_text);
 
     fclose(fptr);
     return 1; 
 
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
- 
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 
@@ -158,7 +118,7 @@ int main(int argc, char *argv[]) {
     else if (strcmp(argv[1], "upload") == 0) {
     if (argc > 2 && strcmp(argv[2], "main") == 0) {
         printf("Uploading to main branch...\n");
-    }
+    }   
     else if (argc > 2 && strcmp(argv[2], "dev") == 0) {
         printf("Uploading to dev branch...\n");
     }
