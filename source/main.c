@@ -957,7 +957,7 @@ int logg(const char *logstr) {
 
 int main(int argc, char *argv[]) {
     if (argc < 2) {
-        printf("uses: \n clone \n tag \n update \n")
+        printf("uses: \n clone \n tag \n update \n");
         
         return 1;
     }
