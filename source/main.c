@@ -303,7 +303,7 @@ int push() {
             }
         }
         closedir(d);
-    }git-clone
+    }
 
     GitPayloadObject sub_tree_obj;
     if (sub_entry_count > 0) {
