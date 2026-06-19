@@ -303,7 +303,7 @@ int push() {
             }
         }
         closedir(d);
-    }
+    }git-clone
 
     GitPayloadObject sub_tree_obj;
     if (sub_entry_count > 0) {
@@ -957,6 +957,8 @@ int logg(const char *logstr) {
 
 int main(int argc, char *argv[]) {
     if (argc < 2) {
+        printf("uses: \n clone \n tag \n update \n")
+        
         return 1;
     }
     system("mkdir -p ~/.local/share/rollback");
