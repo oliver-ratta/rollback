@@ -59,7 +59,7 @@ typedef struct {
     unsigned char *raw_content;
     uint64_t raw_size;
     unsigned char *compressed_data;
-    ulong compressed_size;
+    unsigned long compressed_size;
     unsigned char sha1[20];
     char sha1_hex[41];
 } GitPayloadObject;
