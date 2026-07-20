@@ -10,23 +10,8 @@
 #include <sys/wait.h>
 #include <curl/curl.h>
 #include <stdint.h>
-#include <stdio.h>
-#include <string.h>
-#include <stdlib.h>
-#include <curl/curl.h>
 #include <zlib.h>
-#include <stdint.h>
-#include <time.h>
-#include <dirent.h>
-#include <sys/stat.h>
 #include <openssl/evp.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <stdint.h>
-#include <sys/stat.h>
-#include <sys/types.h>
-#include <zlib.h>
 
 char pd[1024] = "";
 char logstr[4096] = "";
@@ -161,21 +146,30 @@ void trim_input(char *str) {
     if (len > 0 && str[len - 1] == '\n') str[len - 1] = '\0';
 }
 
-
-int push() {
-    char repo[1024] = "https://github.com/oliver-ratta/os";
-    char username[256], token[256], commit_msg[512];
+int push(const char *push_repo_url) {
+    char username[256], token[256], commit_msg[512], email_domain[256];
     char old_hash[41] = {0};
 
+    if (!push_repo_url || push_repo_url[0] == '\0') {
+        printf("Error: Repository URL not provided\n");
+        return 1;
+    }
 
-    
     printf("Enter GitHub Username: ");
     if (fgets(username, sizeof(username), stdin)) trim_input(username);
     printf("Enter Personal Access Token (PAT): ");
     if (fgets(token, sizeof(token), stdin)) trim_input(token);
     printf("Enter Commit Message: ");
     if (fgets(commit_msg, sizeof(commit_msg), stdin)) trim_input(commit_msg);
-
+    printf("Enter Email Domain (default: gmail.com): ");
+    if (fgets(email_domain, sizeof(email_domain), stdin)) {
+        trim_input(email_domain);
+        if (email_domain[0] == '\0') {
+            strcpy(email_domain, "gmail.com");
+        }
+    } else {
+        strcpy(email_domain, "gmail.com");
+    }
 
     CURL *curl;
     CURLcode res;
@@ -187,7 +181,7 @@ int push() {
     if (!curl) return 1;
 
     snprintf(auth_string, sizeof(auth_string), "%s:%s", username, token);
-    snprintf(refs_url, sizeof(refs_url), "%s/info/refs?service=git-receive-pack", repo);
+    snprintf(refs_url, sizeof(refs_url), "%s/info/refs?service=git-receive-pack", push_repo_url);
 
     curl_easy_setopt(curl, CURLOPT_HTTPAUTH, CURLAUTH_BASIC);
     curl_easy_setopt(curl, CURLOPT_USERPWD, auth_string);
@@ -350,8 +344,8 @@ int push() {
     unsigned char commit_raw[1024];
     long now = (long)time(NULL);
     int commit_len = snprintf((char*)commit_raw, sizeof(commit_raw),
-                               "tree %s\nparent %s\nauthor %s <%s@gmail.com> %ld -0400\ncommitter %s <%s@gmail.com> %ld -0400\n\n%s\n",
-                               root_tree_obj.sha1_hex, old_hash, username, username, now, username, username, now, commit_msg);
+                               "tree %s\nparent %s\nauthor %s <%s@%s> %ld -0400\ncommitter %s <%s@%s> %ld -0400\n\n%s\n",
+                               root_tree_obj.sha1_hex, old_hash, username, username, email_domain, now, username, username, email_domain, now, commit_msg);
 
     GitPayloadObject commit_obj;
     strcpy(commit_obj.type, "commit"); 
@@ -404,7 +398,7 @@ int push() {
     stream_pos += 20;
 
     char push_url[2048];
-    snprintf(push_url, sizeof(push_url), "%s/git-receive-pack", repo);
+    snprintf(push_url, sizeof(push_url), "%s/git-receive-pack", push_repo_url);
 
     curl_easy_reset(curl); 
     curl_easy_setopt(curl, CURLOPT_HTTPAUTH, CURLAUTH_BASIC);
@@ -458,123 +452,13 @@ int push() {
     return 0;
 }
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 int unpack() {
-        FILE *pack = fopen("incoming.pack", "rb");
+    FILE *pack = fopen("incoming.pack", "rb");
     if (!pack) {
         printf("Error: 'incoming.pack' not found. Run the fetch network step first.\n");
         return 1;
     }
 
-    
     long pack_start_offset = -1;
     unsigned char ch;
 
@@ -596,7 +480,6 @@ int unpack() {
         return 1;
     }
 
-    
     fseek(pack, pack_start_offset + 4, SEEK_SET);
     unsigned char version_and_count[8];
     if (fread(version_and_count, 1, 8, pack) != 8) {
@@ -613,14 +496,12 @@ int unpack() {
     unsigned char in_buf[IN_BUFFER_SIZE];
     unsigned char *out_buf = malloc(OUT_BUFFER_SIZE);
 
-    
     #ifdef _WIN32
         mkdir("cloned_repo");
     #else
         mkdir("cloned_repo", 0777);
     #endif
 
-    
     for (uint32_t obj_idx = 1; obj_idx <= total_objects; obj_idx++) {
         long current_obj_offset = ftell(pack);
         
@@ -641,7 +522,6 @@ int unpack() {
         objects[obj_idx].type = type;
         objects[obj_idx].file_offset = current_obj_offset;
 
-        
         if (type == 6) {
             unsigned char byte;
             do {
@@ -651,7 +531,6 @@ int unpack() {
             fseek(pack, 20, SEEK_CUR);
         }
 
-        
         z_stream strm = {0};
         if (inflateInit(&strm) != Z_OK) break;
 
@@ -696,11 +575,9 @@ int unpack() {
         inflateEnd(&strm);
     }
 
-    
     for (uint32_t i = 1; i <= total_objects; i++) {
         if (objects[i].type == 3 && objects[i].data != NULL) {
             char filename[256];
-            
             
             if (strstr((char*)objects[i].data, "#include") != NULL) {
                 snprintf(filename, sizeof(filename), "cloned_repo/renderer_3d.c");
@@ -716,7 +593,6 @@ int unpack() {
                 continue; 
             }
 
-            
             FILE *out_file = fopen(filename, "w");
             if (out_file) {
                 fprintf(out_file, "%s", objects[i].data);
@@ -732,20 +608,8 @@ int unpack() {
     free(out_buf);
     fclose(pack);
     
-    
     return 0;
 }
-
-
-
-
-
-
-
-
-
-
-
 
 void upload_to_github(const char *repo_url, const char *token) {
     CURL *curl;
@@ -754,7 +618,6 @@ void upload_to_github(const char *repo_url, const char *token) {
     struct curl_slist *headers = NULL;
 
     if (repo_url[0] == '\0' || token[0] == '\0') {
-        
         return;
     }
 
@@ -768,7 +631,6 @@ void upload_to_github(const char *repo_url, const char *token) {
         curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_callback);
         res = curl_easy_perform(curl);
         if (res != CURLE_OK) {
-            
             curl_easy_cleanup(curl);
             curl_global_cleanup();
             return;
@@ -803,14 +665,13 @@ size_t protocol_v1_callback(void *ptr, size_t size, size_t nmemb, void *stream) 
     return fwrite(ptr, size, nmemb, fp);
 }
 
-void pull(const char *repo_url, const char *destination) {
+void pull(const char *repo_url, const char *destination, const char *commit_hash) {
     CURL *curl;
     CURLcode res;
     char full_url[2048];
-    const char *commit_hash = "cff7e863a5b46a89f7e7f8743aa2c7c11bb0be6b";
 
-    if (repo_url[0] == '\0') {
-        
+    if (repo_url[0] == '\0' || commit_hash[0] == '\0') {
+        printf("Error: Repository URL or commit hash not provided\n");
         return;
     }
 
@@ -847,12 +708,10 @@ void pull(const char *repo_url, const char *destination) {
         curl_slist_free_all(headers);
         curl_easy_cleanup(curl);
         if (res != CURLE_OK) {
-            
             curl_global_cleanup();
             return;
         }
 
-        
         FILE *pack_reader = fopen("incoming.pack", "rb");
         if (pack_reader) {
             unsigned char buffer[4096];
@@ -867,15 +726,13 @@ void pull(const char *repo_url, const char *destination) {
                     }
                 }
             }
-            if (found_offset != -1) {
-                
-            }
         }
     }
     curl_global_cleanup();
 }
 
 void clone() {
+    char commit_hash[41];
     
     printf("Enter repository URL: ");
     fgets(repo_url, sizeof(repo_url), stdin);
@@ -883,18 +740,23 @@ void clone() {
     printf("Enter destination folder (leave blank for current directory): ");
     fgets(username, sizeof(username), stdin);
     trim_line(username);
-    pull(repo_url, username);
+    printf("Enter commit hash to clone: ");
+    fgets(commit_hash, sizeof(commit_hash), stdin);
+    trim_line(commit_hash);
+    pull(repo_url, username, commit_hash);
 }
 
 int read_log() {
     char *home = getenv("HOME");
     if (home == NULL) {
+        printf("Error: HOME environment variable not set\n");
         return 1;
     }
     char full_path[512]; 
     snprintf(full_path, sizeof(full_path), "%s/.local/share/rollback/gitlog.txt", home);
     FILE *fptr = fopen(full_path, "r");
     if (fptr == NULL) {
+        printf("Error: Log file not found at %s\n", full_path);
         return 1;
     }
     char line[1024];
@@ -902,14 +764,14 @@ int read_log() {
         printf("%s", line);
     }
     fclose(fptr);
-    return 1;
+    return 0;
 }
 
 void get_cwd() {
     if (getcwd(cwd, sizeof(cwd)) != NULL) {
         strcpy(pd, cwd);
     } else {
-        
+        printf("Error: Could not get current working directory\n");
     }
 }
 
@@ -926,15 +788,14 @@ void upload() {
 }
 
 int track() {
-    
-    DIR *dir;
-    struct dirent *entry;
     char *home = getenv("HOME");
     if (home == NULL) {
         return 1;
     }
     char full_path[4096];
     snprintf(full_path, sizeof(full_path), "%s/.local/share/rollback", home);
+    DIR *dir;
+    struct dirent *entry;
     dir = opendir(full_path);
     if (dir == NULL) {
         return 1;
@@ -946,8 +807,16 @@ int track() {
 }
 
 int logg(const char *logstr) {
-    FILE *fptr = fopen("/home/oliver/.local/share/rollback/gitlog.txt", "a");
+    char *home = getenv("HOME");
+    if (home == NULL) {
+        printf("Error: HOME environment variable not set\n");
+        return 0;
+    }
+    char full_path[512];
+    snprintf(full_path, sizeof(full_path), "%s/.local/share/rollback/gitlog.txt", home);
+    FILE *fptr = fopen(full_path, "a");
     if (fptr == NULL) {
+        printf("Error: Could not open log file at %s\n", full_path);
         return 0;
     }
     fprintf(fptr, "%s\n", logstr);
@@ -957,8 +826,13 @@ int logg(const char *logstr) {
 
 int main(int argc, char *argv[]) {
     if (argc < 2) {
-        printf("uses: \n clone \n tag \n update \n");
-        
+        printf("Usage: rollback [command] [options]\n");
+        printf("Commands:\n");
+        printf("  clone          Clone a repository\n");
+        printf("  upload <url>   Push changes to repository\n");
+        printf("  tag <tag>      Tag a checkpoint\n");
+        printf("  log            Display operation log\n");
+        printf("  track          Track operations\n");
         return 1;
     }
     system("mkdir -p ~/.local/share/rollback");
@@ -972,6 +846,10 @@ int main(int argc, char *argv[]) {
     strftime(buffer, 20, "%Y-%m-%d %H:%M:%S", tm_info);
 
     if (strcmp(argv[1], "tag") == 0) {
+        if (argc < 3) {
+            printf("Error: tag command requires a tag name\n");
+            return 1;
+        }
         char *user_input = argv[2];
         printf("Tagging: %s\n", user_input);
         strncat(logstr, "[", sizeof(logstr) - strlen(logstr) - 1);
@@ -996,8 +874,12 @@ int main(int argc, char *argv[]) {
             
         }
     } else if (strcmp(argv[1], "upload") == 0) {
-        push();
-
+        if (argc < 3) {
+            printf("Error: upload command requires a repository URL\n");
+            printf("Usage: rollback upload <repo_url>\n");
+            return 1;
+        }
+        push(argv[2]);
     } else if (strcmp(argv[1], "track") == 0) {
         
     } else if (strcmp(argv[1], "log") == 0) {
@@ -1010,6 +892,7 @@ int main(int argc, char *argv[]) {
         strncat(logstr, "]", sizeof(logstr) - strlen(logstr) - 1);
         strncat(logstr, "[", sizeof(logstr) - strlen(logstr) - 1);
         strncat(logstr, username, sizeof(logstr) - strlen(logstr) - 1);
+        strncat(logstr, "]", sizeof(logstr) - strlen(logstr) - 1);
         strncat(logstr, "[", sizeof(logstr) - strlen(logstr) - 1);
         strncat(logstr, useremail, sizeof(logstr) - strlen(logstr) - 1);
         strncat(logstr, "]", sizeof(logstr) - strlen(logstr) - 1);
@@ -1018,7 +901,7 @@ int main(int argc, char *argv[]) {
         logg(logstr);
         unpack();
     } else {
-        
+        printf("Unknown command: %s\n", argv[1]);
     }
     return 0;
 }
